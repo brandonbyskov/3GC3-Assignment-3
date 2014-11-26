@@ -1,12 +1,7 @@
-																										   /*	Particle Simulation
-*	Assignment 2 - CS 3GC3 McMaster University
-*	By Eric Amshukov - 1133146
-*	November Friday 7th, 2014
-*
-*	Description:
-*		This program populates particle objects from midair which are subsequently bounded by frictional 
-*	and gravitational laws of physics. Incidently, it demonstrates the natural consequences of colliding objects.
-*	In addition, OpenGL lighting is utilised to illuminate the perception of depth in the objects.
+/*	Terrain Simulation
+*	Assignment 3 - CS 3GC3 McMaster University
+*	By Eric Amshukov 1133146 /Brandon Byskov
+*	November Friday 27th, 2014
 */
 
 #define WIN32_LEAN_AND_MEAN
@@ -23,25 +18,20 @@
 
 using namespace std;
 
-/* Simulation States - paused, is populating particles, camera is on particle */
-bool gPaused;
-
 /* Movement states */
 bool movingForward, movingBackward, movingLeft, movingRight; 
-
-/* Total particle count, Camera degree count */
 
 /* Global angle theta */
 float gTheta[3];
 
+/* Current mouse position */
 float currentMouse[] = {0, 0, 0};
 
 /* Global origin */
 float gOrigin[3];
 
-/* Recent Particle Position/Direction */
-
-/* Global Camera Position */
+/* Camera */
+float cameraSpeed;
 float gCamPos[3];
 
 /* Global physics */
@@ -52,10 +42,10 @@ float friction;
 float qaAmbientLight[] = {0.2, 0.2, 0.2, 1.0};
 float qaDiffuseLight[] = {0.8, 0.8, 0.8, 1.0};
 float qaSpecularLight[] = {1.0, 1.0, 1.0, 1.0};
-
 float lightPosition[] = {0.5, 0.5, 0.0, 1.0};
 
 
+/* Colours */
 float blue[] = {0, 0, 1};
 float red[] = {1, 0, 0};
 float green[] = {0, 1, 0};
@@ -67,94 +57,111 @@ float grey[] = {0.4, 0.4, 0.4};
 float skin[] = {0.96, 0.80, 0.69};
 float wood[] = {0.52, 0.37, 0.26};
 
-
 class Player
 {
-		float col[3];
-		float pos[3];
-		float dir[3];
-		float rot[3];
-		float speed[3];
-		float size;
+		float pos[3];		//Position
+		float dir[3];		//Direction of travel
+		float rot[3];		//Orientation
+		float velocity[3];		//velocity of movement
+		float size;			//Size of character model
 
 		public:
 			Player(float* _o, float _size)
 			{
 				size = _size;
-
 				
 				for (int i = 0; i < 3; i++)
 				{
 					pos[i] = _o[i];
 					rot[i] = 1.0;
 					dir[i] = 1.0;
-					speed[i] = 0.0;
+					velocity[i] = 0.0;		//Player is initially not moving
 				}
-				col[0] = 1.0; 
-				col[1] = 1.0;
-				col[2] = 0.0;
 			}
 
-			void changeDirection()
-			{
-
-			}
-
+			/* Increments a player's position appropriate to the direction they are moving in */
 			void move()
 			{
+				/* Moves player FORWARDS at a set speed */
 				if (movingForward)
 				{
-					speed[0] = 0.1;
-	   				pos[0] += 1.0 * speed[0];
+					velocity[0] = 0.1;		
+	   				pos[0] += 1.0 * velocity[0];
 				}
 
+				/* Moves player BACKWARDS at a set speed */
 				if (movingBackward)
 				{
-					speed[0] = -0.1;
-	   				pos[0] += 1.0 * speed[0];
+					velocity[0] = -0.1;
+	   				pos[0] += 1.0 * velocity[0];
 				}
 
+
+				/* Strafes player to the RIGHT at a set speed */
 				if (movingRight)
 				{
-					speed[2] = 0.1;
-	   				pos[2] += 1.0 * speed[2];
+					velocity[2] = 0.1;
+	   				pos[2] += 1.0 * velocity[2];
 				}
 
+				/* Strafes player to the LEFT at a set speed */
 				if (movingLeft)
 				{
-					speed[2] = -0.1;
-	   				pos[2] += 1.0 * speed[2];
+					velocity[2] = -0.1;
+	   				pos[2] += 1.0 * velocity[2];
 				}
 
+				/* DECELERATES velocity of player when they are not moving forward/backward */
 				if (!movingBackward && !movingForward)
 				{
-					pos[0] += speed[0];
-					if (speed[0] < -0.0001 || speed[0] > 0.0001)
+					pos[0] += velocity[0];
+					if (velocity[0] < -0.0001 || velocity[0] > 0.0001)	//limit
 					{
-						speed[0] *= 0.9;
+						velocity[0] *= friction;
 					}
 					else
 					{
-						speed[0] = 0;
+						velocity[0] = 0;
 					}
 				}
+
+				/* DECELERATES velocity of player when they are not moving side to side */
 				if (!movingRight && !movingLeft)
 				{
-					pos[2] += speed[2];
-					if (speed[2] < -0.0001 || speed[2] > 0.0001)
+					pos[2] += velocity[2];
+					if (velocity[2] < -0.0001 || velocity[2] > 0.0001) //limit
 					{
-						speed[2] *= 0.9;
+						velocity[2] *= friction;
 					}
 					else
 					{
-						speed[2] = 0;
+						velocity[2] = 0;
 					}
 				}
 			}
 
+			/* Returns the position coordinates of a player */
 			float * getPos()
 			{
 				return pos;
+			}
+
+			/* Returns X coordinate of player */
+			float getX()
+			{
+				return pos[0];
+			}
+
+			/* Returns Y coordinate of player */
+			float getY()
+			{
+				return pos[1];
+			}
+
+			/* Returns Z coordinate of player */
+			float getZ()
+			{
+				return pos[2];
 			}
 
 			void draw()
@@ -216,6 +223,7 @@ class Player
 						glutSolidSphere(size*0.2, 10, 10);
 						glPopMatrix();
 
+						//Right Eye
 						glPushMatrix();
 						glTranslatef(-size*0.3, size*0.8, size*0.5);
 						glutSolidSphere(size*0.2, 10, 10);
@@ -406,221 +414,7 @@ class Platform
 
 };
 
-/* Particle class - Design for a particle which initially rotates and moves arbitrarily */
-class Particle
-{
-	/* Particle states */
-	bool hasBounced;		
-	bool isFalling;
-
-	/* Age of particle (Incremented with each step of the animation) */
-	int age;
-	float rSpeed;
-
-	/* Physics characteristics */
-	float pos[3];	 //Position
-	float dir[3];	 //Direction
-	float rot[3];	 //Rotation
-	float normal[3]; //Normal vector
-
-	/* Random values generated for the direction, rotation and speed */
-	float dRandFactor[3];
-	float rRandFactor[3];
-
-	float colour[3];		//Colour of the particle
-	float oSpeed[3];		//Original particle speed
-	float speed[3];			//Particle speed
-
- 	float white[3];			//Colour white
-
-
-	
-	/* Sets the Normal vector of two coplanar vectors */
-	float * getNormal(float* v1[3], float* v2[3])
-	{
-		/*Cross product*/
-		normal[0] = (*v1[1]) * (*v2[2]) - (*v1[2]) * (*v2[1]);
-		normal[1] = (*v1[2]) * (*v2[0]) - (*v1[0]) * (*v2[2]);
-		normal[1] = (*v1[0]) * (*v2[1]) - (*v1[1]) * (*v2[0]);
-
-		/*Magnitude of the vector*/
-		float m = sqrt(normal[0]*normal[0] +
-					   normal[1]*normal[1] + 
-					   normal[2]*normal[2]);
-
-		/*Normalize the normal vector by dividing each component by magnitude*/
-		for (int i = 0; i < 3; i++)
-		{
-			normal[i] /= m;
-		}
-		
-		return normal;
-	}
-
-	public:
-		/* Constructor - Initializes a Particle with float position coordinates */
-		Particle(float* _pos)
-		{
-			hasBounced = false;
-			isFalling = true;
-			age = 0;	//Initialize the particle's life
-
-			rSpeed = 1;
-		
-			dRandFactor[0] = (float)((rand() % 100)/3);
-			dRandFactor[1] = (float)((rand() % 100));
-			dRandFactor[2] = (float)((rand() % 100)/3);
-
-			for (int i = 0; i < 3; i++)
-			{
-				rRandFactor[i] = (float)((rand() % 360));
-				speed[i] = 0.001f;		   //The higher the speed, the faster
-				oSpeed[i] = speed[i];
-				pos[i] = _pos[i];		
-				rot[i] = rRandFactor[i];
-				colour[i] = (float)(rand() % 100)/100;			//randomize particle colour
-				white[i] = 1.0;
-			}
-
-			dir[0] = 1.0f + dRandFactor[0];
-			dir[1] = -1.0f - dRandFactor[1];
-			dir[2] = 1.0f + dRandFactor[2];
-		}
-
-		/* Increments the age of the particle by one animation step */
-		void incrementAge()
-		{
-			age++;
-		}
-
-		void setBounceState(bool q)
-		{
-			hasBounced = q;
-		}
-
-		/* Modifies the direction coordinates of a particle */
-		void modDirection(float x, float y, float z)
-		{
-			dir[0] = x;
-			dir[1] = y;
-			dir[2] = z;
-		}
-
-		/* Modifies the position of a particle */
-		void modPosition()
-		{
-			/* Accelerate by a factor of gravity */
-			if (isFalling)
-			{
-				speed[1] *= gravity*0.95;
-			}
-
-			/* Decelerate by a factor of gravity */
-			else
-			{
-				/* Stop decelerating once the speed is below an extremely low amount */
-				if (speed[1] > 0.0005)
-				{
-					speed[1] /= gravity;
-				}
-
-				/* Change the direction once the particle has reached its max height */
-				else
-				{
-					dir[1] = -dir[1];
-					isFalling = true;
-				}
-			}
-
-			/* If a particle bounces off the ground, flip 'y' direction */
-			if (hasBounced)
-			{
-				dir[1] = -dir[1];
-				hasBounced = false;
-				isFalling = false;
-			
-				/* Reduce the speed of a particle when it bounces by a factor of 'friction' */
-				for (int i = 0; i < 3; i++)
-				{
-					speed[i] *= friction;
-				}
-			}
-
-			/* Finally, after modifying the direction and speed accordingly,
-				set the new position coordinates */
-			pos[0] += dir[0] * speed[0];
-			pos[1] += dir[1] * speed[1];
-			pos[2] += dir[2] * speed[2];
-
-		}
-
-		/* Increments the angle of a particle */
-		void rotate()
-		{
-			for (int i = 0; i < 3; i++)
-			{
-				
-				/* Reset angle back to 0 after a full cycle */
-				if (rot[i] >= 360)
-				{
-					rot[i] = 0;
-				}
-
-				/* Reduce rotation speed by a factor of friction */
-				rot[i] += rSpeed * friction;
-			}
-		}
-
-
-		int getAge()
-		{
-			return age;
-		}
-
-		/* Returns whether the particle is falling or not */
-		bool getFallingState()
-		{
-			return isFalling;
-		}
-		
-		/* Returns whether the particle has bounced or not */
-		bool getBounceState()
-		{
-			return hasBounced;
-		}
-
-		/* Returns the position coordinates of a particle */
-		float * getPosition()
-		{
-			return pos;
-		}
-		
-		float * getDirection()
-		{
-			return dir;
-		}
-
-		/* Draws a particle in a hierarchical fashion */
-		void draw()
-		{
-			glMaterialfv(GL_FRONT, GL_AMBIENT, colour);
-			glMaterialfv(GL_FRONT, GL_DIFFUSE, colour);
-			glMaterialfv(GL_FRONT, GL_SPECULAR, colour);
-			glMaterialfv(GL_FRONT, GL_SHININESS, white);
-		
-			glPushMatrix();
-			glTranslatef(pos[0], pos[1], pos[2]);
-			glRotatef(rot[0], rot[0], rot[1], rot[2]);
-			glColor3fv(colour);
-			glutSolidCube(0.5);
-			glPopMatrix();
-		}
-};
-
-/*Create a particle and platform vector list, respectively */
-vector<Particle> particle;
 vector<Platform> platform;
-
 
 
 /* Set the global origin of the simulation */
@@ -691,29 +485,24 @@ Player player1 = createPlayer(gOrigin, 0.5);
 /* Initializes all the variables for the Particle Simulation */
 void init()
 {
+	/* Disable Mouse */
+	glutSetCursor(GLUT_CURSOR_NONE);
+
 	/* Initialize states */
-	gPaused = false;
 	movingForward = false;
 	movingBackward = false;
 	movingLeft = false;
 	movingRight = false; 
 
-	
-	/* Initialize total particle counter */
-
-	/* Initialize max particle life */
-
 	/* Initialze physics */
 	gravity = 1.28f;
-	friction = 1.0;
-
-	/* Initialize random generator function */
-	srand (time(NULL));
+	friction = 0.9;
 
 	/* Initialize global origin, theta and camera position */
 	setOrigin(0.0, 0.0, 0.0);
 	setTheta(1.0, 1.0, 1.0);
 	setCamPosition(15.0, 15.0, 15.0);
+	cameraSpeed = 0.08;
 
 	/* Enable lighting and create a light0 with ambience, diffusion and specularity */
 	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE);
@@ -742,38 +531,7 @@ void init()
 	platform.push_back(createPlatform(gOrigin, 15, 15, 1));
 }
 
-/* Checks whether a particle has collided with a platform */
-
-/* Takes user's special key input */
-void specialKeyboard(int key, int x, int y)
-{
-	/* arrow key presses move the camera */
-	switch(key)
-	{
-		/* Rotate left, right, up and down, respectively */
-		case GLUT_KEY_LEFT:
-			gTheta[0] -= 0.1;
-			gTheta[2] -= 0.1;
-			break;
-
-		case GLUT_KEY_RIGHT:
-			gTheta[0] += 0.1;
-			gTheta[2] += 0.1;
-			break;
-
-		case GLUT_KEY_UP:
-			gTheta[1] += 0.1;
-			//gTheta[2] += 0.1;
-			break;
-
-		case GLUT_KEY_DOWN:
-			gTheta[1] -= 0.1;
-			break;
-	}
-}
-
-/* Takes user's keyboard input */
-
+/* Takes user's keyboard input when they release a key */
 void keyboardUp(unsigned char key, int x, int y)
 {
 	/* Character Movement Release*/
@@ -802,7 +560,7 @@ void keyboard(unsigned char key, int x, int y)
 	{
 		if (friction == 1.0)
 		{
-			friction = 0.7;
+			friction = 0.9;
 		}
 		else
 		{
@@ -810,10 +568,10 @@ void keyboard(unsigned char key, int x, int y)
 		}		
 	}
 
-	/* Freezes the simulation */
-	if (key == 'p' || key == 'P')
+	/* Quit the simulation */
+	if (key =='q' || key == 'Q')
 	{
-		gPaused = !gPaused;
+		exit(1);
 	}
 
 	/* Character Movement */
@@ -843,28 +601,59 @@ void keyboard(unsigned char key, int x, int y)
 
 void passiveMouse(int x, int y)
 {
+	/* Rotate camera angle left if mouse moves left */
 	if (x - currentMouse[0] < 0)
 	{
-		
-		gTheta[2] -= 0.1;
+		gTheta[2] -= cameraSpeed;
+		gTheta[0] -= cameraSpeed;
 	}
+
+	/* Rotate camera angle Right if mouse moves right */
 	if (x - currentMouse[0] > 0)
 	{
-		
-		gTheta[2] += 0.1;
+		gTheta[2] += cameraSpeed;
+		gTheta[0] += cameraSpeed;
+	}
+	
+	/* Rotate camera Down if mouse moves down */
+	if (y - currentMouse[1] < 0 && gTheta[1] > -0.5)
+	{
+		gTheta[1] -= cameraSpeed;
 	}
 
-	if (y - currentMouse[1] < 0)
+	/* Rotate camera Up if mouse moves up */
+	if (y - currentMouse[1] > 0 && gTheta[1] < 1.0)
 	{
-		gTheta[1] -= 0.1;
-	}
-	if (y - currentMouse[1] > 0)
-	{
-		gTheta[1] += 0.1;
+		gTheta[1] += cameraSpeed;
 	}
 
+	/* Set current mouse to current position */
 	currentMouse[0] = x;
 	currentMouse[1] = y;
+											  
+	/* Move cursor back to position if it goes out of screen */
+	if (currentMouse[0] > glutGet(GLUT_WINDOW_WIDTH) - 400)
+	{
+		glutWarpPointer(200, currentMouse[1]);
+		currentMouse[0]--;
+	}
+	if (currentMouse[0] < 200)
+	{
+		glutWarpPointer(glutGet(GLUT_WINDOW_WIDTH) - 400, currentMouse[1]);
+		currentMouse[0]++;
+	}
+
+	if (currentMouse[1] > glutGet(GLUT_WINDOW_HEIGHT) - 200)
+	{
+		glutWarpPointer(currentMouse[0], 100);
+		currentMouse[1]--;
+	}
+
+	if (currentMouse[1] < 100)
+	{
+		glutWarpPointer(currentMouse[0], glutGet(GLUT_WINDOW_HEIGHT) - 200);
+		currentMouse[1]++;
+	}
 }
 
 /* display function - GLUT display callback function
@@ -878,14 +667,14 @@ void display(void)
 	glLoadIdentity();
 	
 
-	gCamPos[0] = player1.getPos()[0] - 10;
-	gCamPos[1] = player1.getPos()[1] + 10;
-	gCamPos[2] = player1.getPos()[2] - 2;
-
+	gCamPos[0] = player1.getPos()[0] - 10*sin(gTheta[0]);
+	gCamPos[1] = player1.getPos()[1] + 10*sin(gTheta[1]);
+	gCamPos[2] = player1.getPos()[2] - 10*-cos(gTheta[2]);
+										
 	/* Adjust camera position and center based off of trigonometric rotation */
-	gluLookAt(gCamPos[0]*sin(gTheta[0]), 
-		gCamPos[1]*cos(gTheta[1]), 
-		gCamPos[2]*-cos(gTheta[2]),
+	gluLookAt(gCamPos[0], 
+		gCamPos[1], 
+		gCamPos[2],
 		player1.getPos()[0],
 		player1.getPos()[1],
 		player1.getPos()[2],
@@ -898,11 +687,10 @@ void display(void)
 
 	glColor3f(0.0, 0.0, 1.0);
 
+	/* Draw Player1 onto the screen */
 	player1.draw();
 	player1.move();
 
-
-	
 	/* Swap front buffer with back buffer */
 	glutSwapBuffers();
 }
@@ -910,6 +698,7 @@ void display(void)
 /* Idle call back function which is run everytime nothing else is called back */
 void idle()
 {
+
 	/* Call back display function */
 	glutPostRedisplay();
 }
@@ -929,7 +718,6 @@ int main(int argc, char** argv)
 
 	glutKeyboardFunc(keyboard);
 	glutKeyboardUpFunc(keyboardUp);
-	glutSpecialFunc(specialKeyboard);
 
 	glutPassiveMotionFunc(passiveMouse);
 	glutDisplayFunc(display);	//registers "display" as the display callback function

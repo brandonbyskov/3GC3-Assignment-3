@@ -1,0 +1,11 @@
+Things to get done
+
+-fix the includes to work without commenting some out
+-fix some of the class constructors and object declarations.
+-keyboard controls for movement
+
+Terrain:
+-lighting and colors of terrain
+-terrain position
+-toggle wireframe
+-change the scale and size of terrain

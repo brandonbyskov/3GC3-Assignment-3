@@ -1,20 +1,28 @@
 /*	Terrain Simulation
 *	Assignment 3 - CS 3GC3 McMaster University
-*	By Eric Amshukov 1133146 /Brandon Byskov
+*	By Eric Amshukov 1133146 and Brandon Byskov 1068517
 *	November Friday 27th, 2014
 */
 
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+//#include <windows.h>
 #include <iostream>
 #include <stdlib.h>
+#include <math.h>
 #include <time.h>
 #include <list>
 #include <vector>
-#include <GL/glew.h>
-#include <freeglut.h>
-//#include <GL/GLU.h>
+//#include <GL/glew.h>
+//#include <freeglut.h>
+
+//possibly unnecessary:
 //#include <GL/wglew.h>
+
+//brandon's includes:
+#  include <GL/gl.h>
+#  include <GL/glu.h>
+#  include <GL/freeglut.h>
+
 
 using namespace std;
 
@@ -417,18 +425,111 @@ class Platform
 vector<Platform> platform;
 
 
+class Terrain {
+
+	int** heightmap;
+	int size;
+public:
+
+	Terrain(int terrain_size, int fault_iterations) {
+		size = terrain_size;
+
+		heightmap = new int*[size];
+		for(int i = 0; i < size; i++) {
+			heightmap[i] = new int[size];
+		}
+
+		for(int i = 0;i<size;i++) {
+			for(int j = 0;j<size;j++) {
+				heightmap[i][j] = 0;
+			}
+		}
+		this->build(fault_iterations);
+	};
+
+	//faults the terrain once
+	void fault() {
+		float v = rand();
+		float a = sin(v);
+		float b = cos(v);
+		float d = sqrt(2*size*size);
+		// rand() / RAND_MAX gives a random number between 0 and 1.
+		// therefore c will be a random number between -d/2 and d/2
+		float c = ((double)rand() / RAND_MAX) * d - d/2;
+
+		//int displacement = (((double)rand() / RAND_MAX)>.5)?1:-1;
+
+
+		for(int i = 0;i<size;i++) {
+			for(int j = 0;j<size;j++) {
+				if (a*i + b*j - c > 0) {
+					(heightmap[i][j]) += 1;
+				}
+				else {
+					(heightmap[i][j]) -= 1;
+				}
+			}
+		}
+		
+	}
+
+	//builds a terrain by fualting it several times
+	void build(int iterations) {
+		if (iterations > 0) {
+			for (int i = 1; i<=iterations;i++) {
+				this->fault();
+			}
+
+			//for debugging, print array
+			for(int i = 0;i<size;i++) {
+				for(int j = 0;j<size;j++) {
+					cout << heightmap[i][j];
+					cout << ", ";
+				}
+				cout<< '\n';
+			}
+		}
+	}
+
+	//displays the terrain
+	void display() {
+		for(int i = 0;i<size-1;i++) {
+			for(int j = 0;j<size-1;j++) {
+				glBegin(GL_POLYGON);
+					//if ((heightmap[i][j])>0)
+					//{
+						glColor3ub(0,0,heightmap[i][j]);
+					//}
+					//else
+					//{
+						//glColor3ub(0,0,(-heightmap[i][j]));
+					//}
+
+					glVertex3f(i-5, heightmap[i][j]-15, j-5);
+					glVertex3f(i+1-5, heightmap[i+1][j]-15, j-5);
+					glVertex3f(i+1-5, heightmap[i+1][j+1]-15, j+1-5);
+					glVertex3f(i-5, heightmap[i][j+1]-15, j+1-5);
+				glEnd();
+			}
+		}
+	};
+
+};
+
+Terrain* terrain;
+
 /* Set the global origin of the simulation */
 
 void printInstructions()
 {
-	printf("Particle Simulator Commands\n");
-	printf("___________________________\n");
-	printf("Pause:                               'P'\n");
-	printf("Rotate Horizontally:                 LEFT/RIGHT ARROW KEY\n");
-	printf("Rotate Vertically:                   UP/DOWN ARROW KEY\n");
-	printf("Toggle the population of particles:  SPACE BAR\n");
-	printf("Toggle friction:                     'F' \n");
-	printf("Toggle Particle Camera Mode:         'K'\n");
+	cout << "Particle Simulator Commands\n";
+	cout << "___________________________\n";
+	cout << "Pause:                               'P'\n";
+	cout << "Rotate Horizontally:                 LEFT/RIGHT ARROW KEY\n";
+	cout << "Rotate Vertically:                   UP/DOWN ARROW KEY\n";
+	cout << "Toggle the population of particles:  SPACE BAR\n";
+	cout << "Toggle friction:                     'F' \n";
+	cout << "Toggle Particle Camera Mode:         'K'\n";
 }
 void setOrigin(float x, float y, float z)
 {
@@ -529,6 +630,7 @@ void init()
 
 	/* Create a platform */
 	platform.push_back(createPlatform(gOrigin, 15, 15, 1));
+	terrain = new Terrain(50,100);
 }
 
 /* Takes user's keyboard input when they release a key */
@@ -683,7 +785,8 @@ void display(void)
 	glColor3f(0.2,0.2,0.2);
 
 
-	platform.front().drawPlatform();
+	//platform.front().drawPlatform();
+	terrain->display();
 
 	glColor3f(0.0, 0.0, 1.0);
 

@@ -5,26 +5,26 @@
 */
 
 #define WIN32_LEAN_AND_MEAN
-//#include <windows.h>
 #include <iostream>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
 #include <list>
 #include <vector>
-#include <GL/glew.h>
-#include <freeglut.h>
-
-//possibly unnecessary:
-//#include <GL/wglew.h>
+//#include <GL/glew.h>
+//#include <freeglut.h>
 
 //brandon's includes:
-//#  include <GL/gl.h>
-//#  include <GL/glu.h>
-//#  include <GL/freeglut.h>
+#  include <GL/gl.h>
+#  include <GL/glu.h>
+#  include <GL/freeglut.h>
 
 
 using namespace std;
+
+int main_id;
+int terrain_size = 50;
+int terrain_faults = 100;
 
 /* Movement states */
 bool hasVerticalCollision;
@@ -46,13 +46,16 @@ float gCamPos[3];
 float gravity;
 float friction;
 
+/* Speacial Modes */
+bool wireframeMode = false;
+bool colorMapMode = false;
+
 /* Light values */
 float qaAmbientLight[] = {0.2, 0.2, 0.2, 1.0};
 float qaDiffuseLight[] = {0.8, 0.8, 0.8, 1.0};
 float qaSpecularLight[] = {1.0, 1.0, 1.0, 1.0};
 float lightPosition0[] = {0.5, 0.5, 0.0, 1.0};
 float lightPosition1[] = {0.5, 30, 0.0, 1.0};
-
 
 /* Colours */
 float blue[] = {0, 0, 1};
@@ -518,10 +521,14 @@ class Terrain {
 
 	int** heightmap;
 	int size;
+	int maxHeight;
+	int minHeight
 public:
 
-	Terrain(int terrain_size, int fault_iterations) {
+	Terrain() {
 		size = terrain_size;
+		int fault_iterations = terrain_faults;
+		maxHeight = 0;
 
 		heightmap = new int*[size];
 		for(int i = 0; i < size; i++) {
@@ -534,6 +541,13 @@ public:
 			}
 		}
 		this->build(fault_iterations);
+
+		for(int i = 0;i<size;i++) {
+			for(int j = 0;j<size;j++) {
+				maxHeight = max(heightmap[i][j], maxHeight);
+				minHeight = min(heightmap[i][j], minHeight);
+			}
+		}
 	};
 
 	//faults the terrain once
@@ -568,17 +582,35 @@ public:
 			for (int i = 1; i<=iterations;i++) {
 				this->fault();
 			}
-
-			//for debugging, print array
-			for(int i = 0;i<size;i++) {
-				for(int j = 0;j<size;j++) {
-					cout << heightmap[i][j];
-					cout << ", ";
-				}
-				cout<< '\n';
-			}
 		}
 	}
+
+	//resets the array using global size and fault parameters.
+	void reset()
+	{
+		//delete old heightmap
+		for (int i=0; i < size; i++)
+		{
+			delete [] heightmap[i];
+		}
+		delete [] heightmap;
+
+		size = terrain_size;
+		int fault_iterations = terrain_faults;
+
+		heightmap = new int*[size];
+		for(int i = 0; i < size; i++) {
+			heightmap[i] = new int[size];
+		}
+
+		for(int i = 0;i<size;i++) {
+			for(int j = 0;j<size;j++) {
+				heightmap[i][j] = 0;
+			}
+		}
+		this->build(fault_iterations);
+	}
+
 
 	int ** getHeight()
 	{
@@ -598,17 +630,27 @@ public:
 
 	//displays the terrain
 	void display() {
+		
+		if (wireframeMode)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
+		}
 		for(int i = 0;i<size-1;i++) {
 			for(int j = 0;j<size-1;j++) {
 				glBegin(GL_POLYGON);
-					//if ((heightmap[i][j])>0)
-					//{
+					float avgHeight;
+					if (colorMapMode)
+					{
+						avgHeight = heightmap[i][j] + heightmap[i+1][j] + heightmap[i+1][j+1] + heightmap[i][j+1];
+
+						glColor3f(.5*avgHeight/(float)maxHeight-minHeight,1-(avgHeight/(float)maxHeight-minHeight),0);
+					}
+					else
+					{
 						glColor3ub(0,255,0);
-					//}
-					//else
-					//{
-						//glColor3ub(0,0,(-heightmap[i][j]));
-					//}
+					}
+						
+					
 
 					glMaterialfv(GL_FRONT, GL_AMBIENT, black);
 					glMaterialfv(GL_FRONT, GL_DIFFUSE, black);
@@ -620,13 +662,11 @@ public:
 					glVertex3f(i+1, heightmap[i+1][j+1], j+1);
 					glVertex3f(i, heightmap[i][j+1], j+1);
 
-					/*glVertex3f(i-5, heightmap[i][j]-15, j-5);
-					glVertex3f(i+1-5, heightmap[i+1][j]-15, j-5);
-					glVertex3f(i+1-5, heightmap[i+1][j+1]-15, j+1-5);
-					glVertex3f(i-5, heightmap[i][j+1]-15, j+1-5);*/
+					
 				glEnd();
 			}
 		}
+		glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
 	}
 
 };
@@ -637,14 +677,17 @@ Terrain *terrain;
 
 void printInstructions()
 {
-	cout << "Particle Simulator Commands\n";
+	cout << "Commands\n";
 	cout << "___________________________\n";
-	cout << "Pause:                               'P'\n";
-	cout << "Rotate Horizontally:                 LEFT/RIGHT ARROW KEY\n";
-	cout << "Rotate Vertically:                   UP/DOWN ARROW KEY\n";
-	cout << "Toggle the population of particles:  SPACE BAR\n";
-	cout << "Toggle friction:                     'F' \n";
-	cout << "Toggle Particle Camera Mode:         'K'\n";
+	cout << "Quit                                       'Q'\n";
+	cout << "rotate camera:                          Cursor\n";
+	cout << "Move Character:                      WASD keys\n";
+	cout << "Toggle Wireframe Mode:                     'F'\n";
+	cout << "Toggle Color Map Mode:                     'C'\n";
+	cout << "Reset Terrain                              'R'\n";
+	cout << "Change Terrain Parameters          Right Click\n";
+	cout << "Note: You must reset the Terrain to use new Terrain parameters.\n";
+
 }
 
 /* Set the global angle theta */
@@ -742,7 +785,7 @@ void init()
 
 	/* Create a platform */
 	platform.push_back(createPlatform(gOrigin, 15, 15, 1));
-	terrain = new Terrain(50,100);
+	terrain = new Terrain();
 }
 
 /* Takes user's keyboard input when they release a key */
@@ -769,17 +812,21 @@ void keyboardUp(unsigned char key, int x, int y)
 }
 void keyboard(unsigned char key, int x, int y)
 {
-	/* Enable/Disable global fricton */
+	//Wireframe mode
 	if (key == 'f' || key == 'F')
 	{
-		if (friction == 1.0)
-		{
-			friction = 0.9;
-		}
-		else
-		{
-			friction = 1.0;
-		}		
+		wireframeMode = !wireframeMode;
+	}
+	if (key == 'c' || key == 'C')
+	{
+		colorMapMode = !colorMapMode;
+	}
+
+
+	//Rebuild Terrain
+	if (key == 'r' || key == 'R')
+	{
+		terrain->reset();
 	}
 
 	/* Quit the simulation */
@@ -932,9 +979,9 @@ void checkCollision(Terrain *t, Player *p)
 	float pZ = p->getZ();
 	float pSize = p->getSize();
 
-	for (int i = 0; i < t->getSize(); i++)
+	for (int i = max(0,(int)pX-4); i < min(t->getSize(),(int)pX+4); i++)
 	{
-		for (int j = 0; j < t->getSize(); j++)
+		for (int j = max(0,(int)pZ-4); j < min(t->getSize(),(int)pZ+4); j++)
 		{
 			float tX = t->getSize();
 			float tZ = t->getSize();
@@ -962,6 +1009,21 @@ void idle()
 	/* Call back display function */
 	glutPostRedisplay();
 }
+void mainMenu(int value)
+{
+	if (value == 1)
+		colorMapMode = !colorMapMode;
+	if (value == 2)
+		terrain->reset();
+}
+
+void adjustTerrainSize(int value){
+	terrain_size = value;
+}
+
+void adjustTerrainFaults(int value){
+	terrain_faults = value;
+}
 
 /* main function - program entry point */
 int main(int argc, char** argv)
@@ -974,7 +1036,24 @@ int main(int argc, char** argv)
 	glutInitWindowSize(800, 800);
 	glutInitWindowPosition(100, 100);
 
-	glutCreateWindow("Particle System");	//creates the window
+	glutCreateWindow("Terrain");	//creates the window
+
+	int terrain_size_submenu = glutCreateMenu(adjustTerrainSize);
+		glutAddMenuEntry("50", 50);
+		glutAddMenuEntry("100", 100);
+		glutAddMenuEntry("200", 200);
+		glutAddMenuEntry("300", 300);
+	int faults_submenu = glutCreateMenu(adjustTerrainFaults);
+		glutAddMenuEntry("50", 50);
+		glutAddMenuEntry("100", 100);
+		glutAddMenuEntry("200", 200);
+		glutAddMenuEntry("400", 400);
+	main_id = glutCreateMenu(mainMenu);
+		glutAddSubMenu("Terrain Size", terrain_size_submenu);
+		glutAddSubMenu("Fault Iterations", faults_submenu);
+		glutAddMenuEntry("Toggle Color Map   'C'", 1);
+		glutAddMenuEntry("Reset              'R'", 2);
+	glutAttachMenu(GLUT_RIGHT_BUTTON);
 
 	glutKeyboardFunc(keyboard);
 	glutKeyboardUpFunc(keyboardUp);

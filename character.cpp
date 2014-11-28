@@ -12,22 +12,22 @@
 #include <time.h>
 #include <list>
 #include <vector>
-//#include <GL/glew.h>
-//#include <freeglut.h>
+#include <GL/glew.h>
+#include <freeglut.h>
 
 //possibly unnecessary:
 //#include <GL/wglew.h>
 
 //brandon's includes:
-#  include <GL/gl.h>
-#  include <GL/glu.h>
-#  include <GL/freeglut.h>
+//#  include <GL/gl.h>
+//#  include <GL/glu.h>
+//#  include <GL/freeglut.h>
 
 
 using namespace std;
 
 /* Movement states */
-bool movingForward, movingBackward, movingLeft, movingRight; 
+bool hasVerticalCollision;
 
 /* Global angle theta */
 float gTheta[3];
@@ -67,6 +67,9 @@ float wood[] = {0.52, 0.37, 0.26};
 
 class Player
 {
+		bool hasVerticalCollision;
+		bool hasHorizontalCollision;
+		bool movingForward, movingBackward, movingLeft, movingRight, falling; 
 		float pos[3];		//Position
 		float dir[3];		//Direction of travel
 		float rot[3];		//Orientation
@@ -76,6 +79,12 @@ class Player
 		public:
 			Player(float* _o, float _size)
 			{
+				hasHorizontalCollision = false;
+				movingForward = false;
+				movingBackward = false;
+				movingLeft = false;
+				movingRight = false;
+				falling = true;
 				size = _size;
 				
 				for (int i = 0; i < 3; i++)
@@ -90,11 +99,27 @@ class Player
 			/* Increments a player's position appropriate to the direction they are moving in */
 			void move()
 			{
+				if (falling)
+				{
+					velocity[1] += gravity;
+					pos[1] -= 1.0 * velocity[1];
+				}
+				else
+				{
+					velocity[1] = 0;
+				}
+
 				/* Moves player FORWARDS at a set speed */
 				if (movingForward)
 				{
 					velocity[0] = 0.1;		
 	   				pos[0] += 1.0 * velocity[0];
+
+						if(pos[1] <= 0)
+						{
+							//t->getHeight()[i][j] - 17
+							//p.setY(t->getHeight()[i][j] - 17);
+						}
 				}
 
 				/* Moves player BACKWARDS at a set speed */
@@ -103,7 +128,6 @@ class Player
 					velocity[0] = -0.1;
 	   				pos[0] += 1.0 * velocity[0];
 				}
-
 
 				/* Strafes player to the RIGHT at a set speed */
 				if (movingRight)
@@ -170,6 +194,64 @@ class Player
 			float getZ()
 			{
 				return pos[2];
+			}
+
+			float getSize()
+			{
+				return size;
+			}
+
+			void collidesVertically(float y)
+			{
+				falling = false;
+				pos[1] = y;
+			}
+
+			void setY(float _y)
+			{
+				//pos[1] = _y;
+			}
+
+			void setMovement(int v)
+			{
+				switch (v)
+				{
+					case 0:
+						movingBackward = true;
+						break;
+					case 1:
+						movingForward = true;
+						break;
+					case 2:
+						movingLeft = true;
+						break;
+					case 3:
+						movingRight = true;
+						break;
+					default:
+						break;
+				}
+			}
+
+			void cancelMovement(int v)
+			{
+				switch (v)
+				{
+					case 0:
+						movingBackward = false;
+						break;
+					case 1:
+						movingForward = false;
+						break;
+					case 2:
+						movingLeft = false;
+						break;
+					case 3:
+						movingRight = false;
+						break;
+					default:
+						break;
+				}
 			}
 
 			void draw()
@@ -491,6 +573,22 @@ public:
 		}
 	}
 
+	int ** getHeight()
+	{
+		return heightmap;
+	}
+
+	int getSize()
+	{
+		return size;
+	}
+
+	int getX(float _x)
+	{
+		
+	}
+
+
 	//displays the terrain
 	void display() {
 		for(int i = 0;i<size-1;i++) {
@@ -498,7 +596,7 @@ public:
 				glBegin(GL_POLYGON);
 					//if ((heightmap[i][j])>0)
 					//{
-						glColor3ub(0,0,heightmap[i][j]);
+						glColor3ub(0,255,0);
 					//}
 					//else
 					//{
@@ -512,11 +610,11 @@ public:
 				glEnd();
 			}
 		}
-	};
+	}
 
 };
 
-Terrain* terrain;
+Terrain *terrain;
 
 /* Set the global origin of the simulation */
 
@@ -589,14 +687,8 @@ void init()
 	/* Disable Mouse */
 	glutSetCursor(GLUT_CURSOR_NONE);
 
-	/* Initialize states */
-	movingForward = false;
-	movingBackward = false;
-	movingLeft = false;
-	movingRight = false; 
-
 	/* Initialze physics */
-	gravity = 1.28f;
+	gravity = 0.001f;
 	friction = 0.9;
 
 	/* Initialize global origin, theta and camera position */
@@ -607,7 +699,7 @@ void init()
 
 	/* Enable lighting and create a light0 with ambience, diffusion and specularity */
 	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE);
-	glEnable(GL_LIGHTING);
+	//glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
 
 	glLightfv(GL_LIGHT0, GL_AMBIENT, qaAmbientLight);
@@ -639,20 +731,20 @@ void keyboardUp(unsigned char key, int x, int y)
 	/* Character Movement Release*/
 	if (key == 'w' || key == 'W')
 	{
-		movingForward = false;
+		player1.cancelMovement(1);
 	}
 	if (key == 's' || key == 'S')
 	{
-		movingBackward = false;
+		player1.cancelMovement(0);
 	}
 
 	if (key == 'd' || key == 'D')
 	{
-		movingRight = false;
+		player1.cancelMovement(3);
 	}
 	if (key == 'a' || key == 'A')
 	{
-		movingLeft = false;
+		player1.cancelMovement(2);
 	}
 }
 void keyboard(unsigned char key, int x, int y)
@@ -679,24 +771,20 @@ void keyboard(unsigned char key, int x, int y)
 	/* Character Movement */
 	if (key == 'w' || key == 'W')
 	{
-		movingBackward = false;
-		movingForward = true;
+		player1.setMovement(1);
 	}
 	if (key == 's' || key == 'S')
 	{
-		movingBackward = true;
-		movingForward = false;
+		player1.setMovement(0);
 	}
 
 	if (key == 'd' || key == 'D')
 	{
-		movingLeft = false;
-		movingRight = true;
+		player1.setMovement(3);
 	}
 	if (key == 'a' || key == 'A')
 	{
-		movingLeft = true;
-		movingRight = false;
+		player1.setMovement(2);
 	}
 
 }
@@ -798,9 +886,34 @@ void display(void)
 	glutSwapBuffers();
 }
 
+void checkCollision(Terrain *t, Player *p)
+{
+	float pX = p->getX();
+	float pY = p->getY();
+	float pZ = p->getZ();
+	float pSize = p->getSize();
+
+	for (int i = 0; i < t->getSize(); i++)
+	{
+		for (int j = 0; j < t->getSize(); j++)
+		{
+			float tX = t->getSize();
+			float tZ = t->getSize();
+
+			if ((pX >= i - 4 && pX < i - 6) && 
+				(pZ >= j - 4 && pZ < j - 6) ||
+				pY <= t->getHeight()[i][j]-15)
+			{
+				p->collidesVertically(t->getHeight()[i][j]-15);
+			}
+		}
+	}
+}
+
 /* Idle call back function which is run everytime nothing else is called back */
 void idle()
 {
+	checkCollision(terrain, &player1);
 
 	/* Call back display function */
 	glutPostRedisplay();

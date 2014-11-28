@@ -12,22 +12,22 @@
 #include <time.h>
 #include <list>
 #include <vector>
-//#include <GL/glew.h>
-//#include <freeglut.h>
+#include <GL/glew.h>
+#include <freeglut.h>
 
 //possibly unnecessary:
 //#include <GL/wglew.h>
 
 //brandon's includes:
-#  include <GL/gl.h>
-#  include <GL/glu.h>
-#  include <GL/freeglut.h>
+//#  include <GL/gl.h>
+//#  include <GL/glu.h>
+//#  include <GL/freeglut.h>
 
 
 using namespace std;
 
 /* Movement states */
-bool movingForward, movingBackward, movingLeft, movingRight; 
+bool hasVerticalCollision;
 
 /* Global angle theta */
 float gTheta[3];
@@ -36,10 +36,10 @@ float gTheta[3];
 float currentMouse[] = {0, 0, 0};
 
 /* Global origin */
-float gOrigin[3];
 
 /* Camera */
 float cameraSpeed;
+float cameraDistance;
 float gCamPos[3];
 
 /* Global physics */
@@ -50,7 +50,8 @@ float friction;
 float qaAmbientLight[] = {0.2, 0.2, 0.2, 1.0};
 float qaDiffuseLight[] = {0.8, 0.8, 0.8, 1.0};
 float qaSpecularLight[] = {1.0, 1.0, 1.0, 1.0};
-float lightPosition[] = {0.5, 0.5, 0.0, 1.0};
+float lightPosition0[] = {0.5, 0.5, 0.0, 1.0};
+float lightPosition1[] = {0.5, 30, 0.0, 1.0};
 
 
 /* Colours */
@@ -67,6 +68,9 @@ float wood[] = {0.52, 0.37, 0.26};
 
 class Player
 {
+		bool hasVerticalCollision;
+		bool hasHorizontalCollision;
+		bool movingForward, movingBackward, movingLeft, movingRight, falling; 
 		float pos[3];		//Position
 		float dir[3];		//Direction of travel
 		float rot[3];		//Orientation
@@ -76,6 +80,12 @@ class Player
 		public:
 			Player(float* _o, float _size)
 			{
+				hasHorizontalCollision = false;
+				movingForward = false;
+				movingBackward = false;
+				movingLeft = false;
+				movingRight = false;
+				falling = true;
 				size = _size;
 				
 				for (int i = 0; i < 3; i++)
@@ -90,11 +100,27 @@ class Player
 			/* Increments a player's position appropriate to the direction they are moving in */
 			void move()
 			{
+				if (falling)
+				{
+					velocity[1] += 1 * gravity;
+					pos[1] -= 1.0 * velocity[1];
+				}
+				else
+				{
+					velocity[1] = 0;
+				}
+
 				/* Moves player FORWARDS at a set speed */
 				if (movingForward)
 				{
 					velocity[0] = 0.1;		
 	   				pos[0] += 1.0 * velocity[0];
+
+						if(pos[1] <= 0)
+						{
+							//t->getHeight()[i][j] - 17
+							//p.setY(t->getHeight()[i][j] - 17);
+						}
 				}
 
 				/* Moves player BACKWARDS at a set speed */
@@ -103,7 +129,6 @@ class Player
 					velocity[0] = -0.1;
 	   				pos[0] += 1.0 * velocity[0];
 				}
-
 
 				/* Strafes player to the RIGHT at a set speed */
 				if (movingRight)
@@ -172,6 +197,70 @@ class Player
 				return pos[2];
 			}
 
+			float getSize()
+			{
+				return size;
+			}
+
+			void collidesVertically(float y)
+			{
+				falling = false;
+				//pos[1] = y;
+			}
+
+			void drop()
+			{
+				velocity[1] = 0.01;
+				falling = true;
+			}
+
+			void setY(float _y)
+			{
+				pos[1] = _y;
+			}
+
+			void setMovement(int v)
+			{
+				switch (v)
+				{
+					case 0:
+						movingBackward = true;
+						break;
+					case 1:
+						movingForward = true;
+						break;
+					case 2:
+						movingLeft = true;
+						break;
+					case 3:
+						movingRight = true;
+						break;
+					default:
+						break;
+				}
+			}
+
+			void cancelMovement(int v)
+			{
+				switch (v)
+				{
+					case 0:
+						movingBackward = false;
+						break;
+					case 1:
+						movingForward = false;
+						break;
+					case 2:
+						movingLeft = false;
+						break;
+					case 3:
+						movingRight = false;
+						break;
+					default:
+						break;
+				}
+			}
+
 			void draw()
 			{		
 				//Body
@@ -191,7 +280,7 @@ class Player
 					glMaterialfv(GL_FRONT, GL_DIFFUSE, skin);
 					glMaterialfv(GL_FRONT, GL_SPECULAR, skin);
 					glMaterialfv(GL_FRONT, GL_SHININESS, skin);
-				
+					glColor3fv(skin);
 					glPushMatrix();
 					glTranslatef(0.0, 0.0, size*2);
 					glutSolidSphere(size, 10, 10);
@@ -201,7 +290,7 @@ class Player
 						glMaterialfv(GL_FRONT, GL_DIFFUSE, blue);
 						glMaterialfv(GL_FRONT, GL_SPECULAR, black);
 						glMaterialfv(GL_FRONT, GL_SHININESS, white);
-				
+						glColor3fv(blue);
 						glPushMatrix();
 						glTranslatef(0.0, 0.0, size * 0.8);
 						glutSolidCone(size*2, size*0.8, 10, 10);
@@ -211,7 +300,7 @@ class Player
 							glMaterialfv(GL_FRONT, GL_DIFFUSE, blue);
 							glMaterialfv(GL_FRONT, GL_SPECULAR, black);
 							glMaterialfv(GL_FRONT, GL_SHININESS, white);
-				
+							glColor3fv(blue);
 							glPushMatrix();
 							//glTranslatef(0.0, 0.0, size);
 							glRotatef(30, 1.0, 0.0, 0.0);
@@ -225,7 +314,7 @@ class Player
 						glMaterialfv(GL_FRONT, GL_DIFFUSE, black);
 						glMaterialfv(GL_FRONT, GL_SPECULAR, black);
 						glMaterialfv(GL_FRONT, GL_SHININESS, white);
-
+						glColor3fv(black);
 						glPushMatrix();
 						glTranslatef(size*0.3, size*0.7, size*0.5);
 						glutSolidSphere(size*0.2, 10, 10);
@@ -242,7 +331,7 @@ class Player
 						glMaterialfv(GL_FRONT, GL_DIFFUSE, grey);
 						glMaterialfv(GL_FRONT, GL_SPECULAR, grey);
 						glMaterialfv(GL_FRONT, GL_SHININESS, grey);
-
+						glColor3fv(grey);
 						glPushMatrix();
 						glTranslatef(0.0, size*0.6, -size*0.2);
 						glRotatef(-150, 1.0, 0.0, 0.0);
@@ -256,7 +345,7 @@ class Player
 					glMaterialfv(GL_FRONT, GL_DIFFUSE, blue);
 					glMaterialfv(GL_FRONT, GL_SPECULAR, blue);
 					glMaterialfv(GL_FRONT, GL_SHININESS, white);
-
+					glColor3fv(blue);
 					//right
 					glPushMatrix();
 					glTranslatef(1.5*size, -0.8*size , 0.0);
@@ -275,7 +364,7 @@ class Player
 						glMaterialfv(GL_FRONT, GL_DIFFUSE, wood);
 						glMaterialfv(GL_FRONT, GL_SPECULAR, wood);
 						glMaterialfv(GL_FRONT, GL_SHININESS, black);
-
+						glColor3fv(wood);
 						glPushMatrix();
 						glTranslatef(0.0, 0.0, -0.5*size);
 						glRotatef(-60, 1.0, 1.0, 0.0);
@@ -286,7 +375,7 @@ class Player
 							glMaterialfv(GL_FRONT, GL_DIFFUSE, red);
 							glMaterialfv(GL_FRONT, GL_SPECULAR, red);
 							glMaterialfv(GL_FRONT, GL_SHININESS, black);
-
+							glColor3fv(red);
 							glPushMatrix();
 							glTranslatef(0.0, 0.0, size*4);
 							glRotatef(0.0, 1.0, 1.0, 0.0);
@@ -300,7 +389,7 @@ class Player
 					glMaterialfv(GL_FRONT, GL_DIFFUSE, blue);
 					glMaterialfv(GL_FRONT, GL_SPECULAR, blue);
 					glMaterialfv(GL_FRONT, GL_SHININESS, black);
-
+					glColor3fv(blue);
 					glPushMatrix();
 					glTranslatef(0.0, 0.0, -1.0);
 					glutSolidCone(size*1.5, size*4, 10, 10);
@@ -491,6 +580,22 @@ public:
 		}
 	}
 
+	int ** getHeight()
+	{
+		return heightmap;
+	}
+
+	int getSize()
+	{
+		return size;
+	}
+
+	int getX(float _x)
+	{
+		
+	}
+
+
 	//displays the terrain
 	void display() {
 		for(int i = 0;i<size-1;i++) {
@@ -498,25 +603,35 @@ public:
 				glBegin(GL_POLYGON);
 					//if ((heightmap[i][j])>0)
 					//{
-						glColor3ub(0,0,heightmap[i][j]);
+						glColor3ub(0,255,0);
 					//}
 					//else
 					//{
 						//glColor3ub(0,0,(-heightmap[i][j]));
 					//}
 
-					glVertex3f(i-5, heightmap[i][j]-15, j-5);
+					glMaterialfv(GL_FRONT, GL_AMBIENT, black);
+					glMaterialfv(GL_FRONT, GL_DIFFUSE, black);
+					glMaterialfv(GL_FRONT, GL_SPECULAR, black);
+					glMaterialfv(GL_FRONT, GL_SHININESS, green);
+
+					glVertex3f(i, heightmap[i][j], j);
+					glVertex3f(i+1, heightmap[i+1][j], j);
+					glVertex3f(i+1, heightmap[i+1][j+1], j+1);
+					glVertex3f(i, heightmap[i][j+1], j+1);
+
+					/*glVertex3f(i-5, heightmap[i][j]-15, j-5);
 					glVertex3f(i+1-5, heightmap[i+1][j]-15, j-5);
 					glVertex3f(i+1-5, heightmap[i+1][j+1]-15, j+1-5);
-					glVertex3f(i-5, heightmap[i][j+1]-15, j+1-5);
+					glVertex3f(i-5, heightmap[i][j+1]-15, j+1-5);*/
 				glEnd();
 			}
 		}
-	};
+	}
 
 };
 
-Terrain* terrain;
+Terrain *terrain;
 
 /* Set the global origin of the simulation */
 
@@ -530,12 +645,6 @@ void printInstructions()
 	cout << "Toggle the population of particles:  SPACE BAR\n";
 	cout << "Toggle friction:                     'F' \n";
 	cout << "Toggle Particle Camera Mode:         'K'\n";
-}
-void setOrigin(float x, float y, float z)
-{
-	gOrigin[0] = x;
-	gOrigin[1] = y;
-	gOrigin[2] = z;
 }
 
 /* Set the global angle theta */
@@ -581,6 +690,8 @@ Player createPlayer(float* o, float m)
 	return p;
 }
 
+float gOrigin[] = {0.0, 50.0, 0};
+
 Player player1 = createPlayer(gOrigin, 0.5);
 
 /* Initializes all the variables for the Particle Simulation */
@@ -589,32 +700,33 @@ void init()
 	/* Disable Mouse */
 	glutSetCursor(GLUT_CURSOR_NONE);
 
-	/* Initialize states */
-	movingForward = false;
-	movingBackward = false;
-	movingLeft = false;
-	movingRight = false; 
-
 	/* Initialze physics */
-	gravity = 1.28f;
+	gravity = 1.2f;
 	friction = 0.9;
 
-	/* Initialize global origin, theta and camera position */
-	setOrigin(0.0, 0.0, 0.0);
+	/* Initialize global origin, theta and camera variables */
 	setTheta(1.0, 1.0, 1.0);
 	setCamPosition(15.0, 15.0, 15.0);
 	cameraSpeed = 0.08;
+	cameraDistance = 10;
 
 	/* Enable lighting and create a light0 with ambience, diffusion and specularity */
 	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE);
-	glEnable(GL_LIGHTING);
+	//glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
+	glEnable(GL_LIGHT1);
 
 	glLightfv(GL_LIGHT0, GL_AMBIENT, qaAmbientLight);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, qaDiffuseLight);
 	glLightfv(GL_LIGHT0, GL_SPECULAR, qaSpecularLight);
 
-	glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
+	
+	glLightfv(GL_LIGHT1, GL_AMBIENT, qaAmbientLight);
+	glLightfv(GL_LIGHT1, GL_DIFFUSE, qaDiffuseLight);
+	glLightfv(GL_LIGHT1, GL_SPECULAR, qaSpecularLight);
+
+	glLightfv(GL_LIGHT0, GL_POSITION, lightPosition0);
+	glLightfv(GL_LIGHT1, GL_POSITION, lightPosition1);
 
 	
 	/* Initialize OpenGL colour, Depth Test, Projection mode */
@@ -639,20 +751,20 @@ void keyboardUp(unsigned char key, int x, int y)
 	/* Character Movement Release*/
 	if (key == 'w' || key == 'W')
 	{
-		movingForward = false;
+		player1.cancelMovement(1);
 	}
 	if (key == 's' || key == 'S')
 	{
-		movingBackward = false;
+		player1.cancelMovement(0);
 	}
 
 	if (key == 'd' || key == 'D')
 	{
-		movingRight = false;
+		player1.cancelMovement(3);
 	}
 	if (key == 'a' || key == 'A')
 	{
-		movingLeft = false;
+		player1.cancelMovement(2);
 	}
 }
 void keyboard(unsigned char key, int x, int y)
@@ -679,26 +791,41 @@ void keyboard(unsigned char key, int x, int y)
 	/* Character Movement */
 	if (key == 'w' || key == 'W')
 	{
-		movingBackward = false;
-		movingForward = true;
+		player1.setMovement(1);
 	}
 	if (key == 's' || key == 'S')
 	{
-		movingBackward = true;
-		movingForward = false;
+		player1.setMovement(0);
 	}
 
 	if (key == 'd' || key == 'D')
 	{
-		movingLeft = false;
-		movingRight = true;
+		player1.setMovement(3);
 	}
 	if (key == 'a' || key == 'A')
 	{
-		movingLeft = true;
-		movingRight = false;
+		player1.setMovement(2);
 	}
 
+}
+
+/* Mouse click call back */
+void mouse(int button, int state, int x, int y)
+{
+	if (state == GLUT_DOWN)
+	{
+		/* Zoom in */
+		if (button == GLUT_LEFT_BUTTON && cameraDistance > 4)
+		{
+			cameraDistance -= 2;
+		}
+
+		/* Zoom out */
+		if (button == GLUT_RIGHT_BUTTON && cameraDistance < 30)
+		{
+			cameraDistance += 2;
+		}
+	}
 }
 
 void passiveMouse(int x, int y)
@@ -769,9 +896,9 @@ void display(void)
 	glLoadIdentity();
 	
 
-	gCamPos[0] = player1.getPos()[0] - 10*sin(gTheta[0]);
-	gCamPos[1] = player1.getPos()[1] + 10*sin(gTheta[1]);
-	gCamPos[2] = player1.getPos()[2] - 10*-cos(gTheta[2]);
+	gCamPos[0] = player1.getPos()[0] - cameraDistance*sin(gTheta[0]);
+	gCamPos[1] = player1.getPos()[1] + cameraDistance*sin(gTheta[1]);
+	gCamPos[2] = player1.getPos()[2] - cameraDistance*-cos(gTheta[2]);
 										
 	/* Adjust camera position and center based off of trigonometric rotation */
 	gluLookAt(gCamPos[0], 
@@ -798,9 +925,39 @@ void display(void)
 	glutSwapBuffers();
 }
 
+void checkCollision(Terrain *t, Player *p)
+{
+	float pX = p->getX();
+	float pY = p->getY();
+	float pZ = p->getZ();
+	float pSize = p->getSize();
+
+	for (int i = 0; i < t->getSize(); i++)
+	{
+		for (int j = 0; j < t->getSize(); j++)
+		{
+			float tX = t->getSize();
+			float tZ = t->getSize();
+
+			if ((pX <= i+1 && pX >= i) && 
+				(pZ <= j+1 && pZ >= j) &&
+				pY <= t->getHeight()[i][j])
+			{
+				p->collidesVertically(100);
+				p->setY(t->getHeight()[i][j] + pSize);
+			}
+			else
+			{
+				p->drop();
+			}
+		}
+	}
+}
+
 /* Idle call back function which is run everytime nothing else is called back */
 void idle()
 {
+	checkCollision(terrain, &player1);
 
 	/* Call back display function */
 	glutPostRedisplay();
@@ -822,6 +979,7 @@ int main(int argc, char** argv)
 	glutKeyboardFunc(keyboard);
 	glutKeyboardUpFunc(keyboardUp);
 
+	glutMouseFunc(mouse);
 	glutPassiveMotionFunc(passiveMouse);
 	glutDisplayFunc(display);	//registers "display" as the display callback function
 	glutIdleFunc(idle);
